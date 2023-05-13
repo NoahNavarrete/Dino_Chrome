@@ -24,6 +24,7 @@ body {
     margin: 0 auto;
     position: relative;
     background: linear-gradient(#87D6C7, #FFE2D1);
+    overflow: hidden;
 }
 .dino{
     width: 84px;
@@ -39,6 +40,9 @@ body {
 .dino-corriendo{
     animation: animarDino 0.25s steps(2) infinite;
 }
+.dino-estrellado{
+    background-position-x: -252px;
+}
 .suelo{
     width: 200%;
     height: 42px;
@@ -50,8 +54,19 @@ body {
     background: url(/img/suelo.png) repeat-x 0px 0px;
     background-size: 50% 42px;
 }
+.cactus{
+    width: 46px;
+    height: 96px;
+
+    position: absolute;
+    bottom: 16px;
+    left: 600px;
+    z-index: 1;
+
+    background: url(/img/cactus1.png) no-repeat;
+}
 .score{
-    width: 100%;
+    width: 100px;
     height: 30px;
 
     position: absolute;
@@ -67,8 +82,18 @@ body {
 
 }
 
-dino-estrellado{
-    background-position-x: -252px;
+
+
+.game-over{
+    display: none;
+    position: absolute;
+    width: 100%;
+
+    text-align: center;
+    color: #7e928b;
+    font-size: 30px;
+    font-family: Verdana;
+    font-weight: 700;
 }
 @keyframes animarDino {
         from{
@@ -95,9 +120,202 @@ dino-estrellado{
         <div class="score">0</div>
 
     </div>
-
+    <div class="game-over">GAME OVER</div>
     <script>
+
+        //** Game Loop **//
+        var time = new Date();
+        var deltaTime = 0;
+
+        if(document.readyState === "complete" || document.readyState === "interactive"){
+            setTimeout(Init, 1)
+        }else{
+            document.addEventListener("DOMContentLoaded", Init)
+        }
+
+        function Init() {
+            time = new Date();
+            Start();
+            Loop();
+        }
+
+        function Loop(){
+            deltaTime = (new Date() - time) / 1000;
+            time = new Date();
+            Update()
+            requestAnimationFrame(Loop);
+        }
+
+
+
+        //** Juego//
+
+        var sueloY = 22;
+        var velY = 0;
+        var impulso = 900;
+        var gravedad = 2500;
+
+        var dinoPosX = 42;
+        var dinoPosY = sueloY;
         
+        var sueloX = 0;
+        var velEscenario =1280/3;
+        var gameVel = 1;
+        var score = 0;
+
+        var parado = false;
+        var saltando = false;
+
+        var tiempoHastaObstaculo = 2;
+        var tiempoObstaculoMin = 0.7;
+        var tiempoObstaculoMax = 1.8;
+        var obstaculoPosY = 16;
+        var obstaculos = [];
+
+        var contenedor;
+        var dino;
+        var textoScore;
+        var suelo;
+        var gameOver;
+
+        function Start() {
+            gameOver = document.querySelector(".game-over");
+            suelo = document.querySelector(".suelo");
+            contenedor = document.querySelector(".contenedor");
+            textoScore = document.querySelector(".score");
+            dino = document.querySelector(".dino");
+            document.addEventListener("keydown", HandleKeyDown)
+        }
+
+        
+        
+        
+        function Update(){
+            
+            if(parado) return; 
+            
+            MoverDinosaurio();
+            MoverSuelo();
+            DecidirCrearObstaculo();
+            MoverObstaculos();
+            DetectarColision();
+            
+            velY -= gravedad * deltaTime;
+            
+        }
+        
+        function HandleKeyDown(ev){
+            if(ev.keyCode == 32){
+                Saltar();
+            }
+        }
+        function Saltar(){
+            if(dinoPosY === sueloY) {
+                saltando = true;
+                velY = impulso;
+                dino.classList.remove("dino-corriendo");
+            }
+        }
+        
+        function MoverDinosaurio(){
+            dinoPosY += velY * deltaTime;
+            if(dinoPosY < sueloY){
+                TocarSuelo();
+            }
+            dino.style.bottom = dinoPosY + "px"
+        }
+        
+        function TocarSuelo(){
+            dinoPosY = sueloY;
+            velY=0;
+            if(saltando){
+                dino.classList.add("dino-corriendo")
+            }
+            saltando = false;
+        }
+        function MoverSuelo() {
+            sueloX += CalcularDesplazamineto();
+            suelo.style.left = -(sueloX % contenedor.clientWidth) + "px";
+        }
+        
+        function CalcularDesplazamineto(){
+            return velEscenario * deltaTime * gameVel;
+        }
+        
+        function Estrellarse() {
+            dino.classList.remove("dino-corriendo");
+            dino.classList.add("dino-estrellado");
+            parado = true;
+        }
+        
+        
+        function DecidirCrearObstaculo(){
+            tiempoHastaObstaculo -= deltaTime;
+            if(tiempoHastaObstaculo <=0){
+                CrearObstaculo();
+            }
+        }
+
+        function CrearObstaculo() {
+            var obstaculo = document.createElement("div");
+            contenedor.appendChild(obstaculo);
+            obstaculo.classList.add("cactus");
+            obstaculo.posX = contenedor.clientWidth;
+            obstaculo.style.left = contenedor.clientWidth + "px"
+
+            obstaculos.push(obstaculo);
+            tiempoHastaObstaculo = tiempoObstaculoMin + Math.random() * (tiempoObstaculoMax - tiempoObstaculoMin) / gameVel;
+
+        }
+
+        function MoverObstaculos(){
+            for(var i = obstaculos.length -1; i >= 0; i--){
+                if(obstaculos[i].posX < -obstaculos[i].clientWidth){
+                    obstaculos[i].parentNode.removeChild(obstaculos[i]);
+                    obstaculos.splice(i, 1)
+                    GanarPuntos()
+                }else {
+                    obstaculos[i].posX -= CalcularDesplazamineto();
+                    obstaculos[i].style.left = obstaculos[i].posX+"px"
+                }
+            }
+        }
+
+        function GanarPuntos(){
+            score++;
+            textoScore.innerText = score
+        }
+        
+       function GameOver(){
+            Estrellarse();
+            gameOver.style.display = "block";
+        }
+
+        function DetectarColision() {
+            for(var i =0; i < obstaculos.length; i++){
+                if(obstaculos[i].posX > dinoPosX + dino.clientWidth) {
+                    break;
+                }else{
+                    if(isCollision(dino, obstaculos[i],10,30,15,20)){
+                        GameOver();
+                    }
+                }
+            }
+        }
+
+        function isCollision(a, b, paddingTop, paddingRight, paddingBottom, paddingLeft){
+            let aRect = a.getBoundingClientRect();
+            let bRect = b.getBoundingClientRect();
+
+            return !(
+                ((aRect.top + aRect.height - paddingBottom) < (bRect.top)) ||
+                (aRect.top + paddingTop > (bRect.top + bRect.height)) ||
+                ((aRect.left + aRect.width -paddingRight) < bRect.left) ||
+                (aRect.left + paddingLeft > (bRect.left + bRect.width))
+            );
+        }
+
+
     </script>
     
 </body>
